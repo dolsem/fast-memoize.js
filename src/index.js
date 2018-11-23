@@ -2,7 +2,7 @@
 // Main
 //
 
-function memoize (fn, options) {
+function memoize (fn, options, customContext) {
   var cache = options && options.cache
     ? options.cache
     : cacheDefault
@@ -17,7 +17,8 @@ function memoize (fn, options) {
 
   return strategy(fn, {
     cache: cache,
-    serializer: serializer
+    serializer: serializer,
+    customContext
   })
 }
 
@@ -68,7 +69,7 @@ function strategyDefault (fn, options) {
 
   return assemble(
     fn,
-    this,
+    options.customContext || this,
     strategy,
     options.cache.create(),
     options.serializer
@@ -80,7 +81,7 @@ function strategyVariadic (fn, options) {
 
   return assemble(
     fn,
-    this,
+    options.customContext || this,
     strategy,
     options.cache.create(),
     options.serializer
@@ -92,7 +93,7 @@ function strategyMonadic (fn, options) {
 
   return assemble(
     fn,
-    this,
+    options.customContext || this,
     strategy,
     options.cache.create(),
     options.serializer
@@ -134,10 +135,46 @@ var cacheDefault = {
 }
 
 //
+// Decorator
+//
+
+function createDecorator (options) {
+  function memoizeDecorator (target, name, descriptor) {
+    var get = function() {
+      var value = descriptor.value || descriptor.get.apply(this, arguments)
+      var memoized = memoize(value, options, this)
+      Object.defineProperty(this, name, {
+        value: memoized,
+        writable: descriptor.writable,
+        enumerable: descriptor.enumerable
+      });
+
+      return memoized
+    }
+    return {
+      get: get,
+      enumerable: descriptor.enumerable
+    }
+  }
+
+  return memoizeDecorator
+}
+
+//
 // API
 //
 
-module.exports = memoize
+module.exports = function (a, b, c) {
+  if (typeof a === 'function') {
+    return memoize(a, b)
+  }
+
+  if (c) {
+    return createDecorator()(a, b, c);
+  }
+
+  return createDecorator(a);
+}
 module.exports.strategies = {
   variadic: strategyVariadic,
   monadic: strategyMonadic
