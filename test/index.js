@@ -2,6 +2,43 @@
 
 const memoize = require('../src')
 
+/* Class and decorator helpers from Babel */
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _applyDecoratedDescriptor(target, property, decorators, descriptor, context) {
+  var desc = {};
+  Object['ke' + 'ys'](descriptor).forEach(function (key) {
+    desc[key] = descriptor[key];
+  });
+  desc.enumerable = !!desc.enumerable;
+  desc.configurable = !!desc.configurable;
+
+  if ('value' in desc || desc.initializer) {
+    desc.writable = true;
+  }
+
+  desc = decorators.slice().reverse().reduce(function (desc, decorator) {
+    return decorator(target, property, desc) || desc;
+  }, desc);
+
+  if (context && desc.initializer !== void 0) {
+    desc.value = desc.initializer ? desc.initializer.call(context) : void 0;
+    desc.initializer = undefined;
+  }
+
+  if (desc.initializer === void 0) {
+    Object['define' + 'Property'](target, property, desc);
+    desc = null;
+  }
+
+  return desc;
+}
+
+/* Tests */
+
 test('speed', () => {
   // Vanilla Fibonacci
 
@@ -205,4 +242,109 @@ test('explicitly use exposed variadic strategy', () => {
 
   // Teardown
   spy.mockRestore()
+})
+
+test('work as decorator', () => {
+  let classA, classB, classC
+
+  const spyB = jest.spyOn(memoize.strategies, 'variadic')
+  const spyC = jest.spyOn(memoize.strategies, 'monadic')
+
+  const decoA = memoize
+  const decoB = memoize({ strategy: memoize.strategies.variadic })
+  const decoC = memoize({ strategy: memoize.strategies.monadic })
+
+  const A = (classA = function () {
+    function A() {
+      _classCallCheck(this, A);
+    }
+  
+    _createClass(A, [{
+      key: "method",
+      value: function method() {
+        return this.numberOfCalls = (this.numberOfCalls || 0) + 1;
+      }
+    }]);
+  
+    return A;
+  }(), (
+    _applyDecoratedDescriptor(
+      classA.prototype,
+      "method",
+      [decoA],
+      Object.getOwnPropertyDescriptor(classA.prototype, "method"),
+      classA.prototype
+    )
+  ), classA);
+
+  const B = (classB = function () {
+    function B() {
+      _classCallCheck(this, B);
+    }
+  
+    _createClass(B, [{
+      key: "method",
+      value: function method() {
+        return this.numberOfCalls = (this.numberOfCalls || 0) + 1;
+      }
+    }]);
+  
+    return B;
+  }(), (
+    _applyDecoratedDescriptor(
+      classB.prototype,
+      "method",
+      [decoB],
+      Object.getOwnPropertyDescriptor(classB.prototype, "method"),
+      classB.prototype
+    )
+  ), classB);
+
+  const C = (classC = function () {
+    function C() {
+      _classCallCheck(this, C);
+    }
+  
+    _createClass(C, [{
+      key: "method",
+      value: function method() {
+        return this.numberOfCalls = (this.numberOfCalls || 0) + 1;
+      }
+    }]);
+  
+    return C;
+  }(), (
+    _applyDecoratedDescriptor(
+      classC.prototype,
+      "method",
+      [decoC],
+      Object.getOwnPropertyDescriptor(classC.prototype, "method"),
+      classC.prototype
+    )
+  ), classC);
+
+  // Assertions
+  const a = new A();
+  expect(a.method()).toBe(1);
+  expect(a.method()).toBe(1);
+  expect(a.method('string')).toBe(2);
+  expect(a.method('string')).toBe(2);
+
+  const b = new B();
+  expect(b.method('string1')).toBe(1);
+  expect(b.method('string1')).toBe(1);
+  expect(b.method('string1', 'string2')).toBe(2);
+  expect(b.method('string1', 'string2')).toBe(2);
+  expect(spyB).toHaveBeenCalled()
+
+  const c = new C();
+  expect(c.method('string1')).toBe(1);
+  expect(c.method('string1')).toBe(1);
+  expect(c.method('string1', 'string2')).toBe(1);
+  expect(c.method('string1', 'string2')).toBe(1);
+  expect(spyC).toHaveBeenCalled()
+
+  // Teardown
+  spyB.mockRestore()
+  spyC.mockRestore()
 })
